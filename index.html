@@ -275,18 +275,19 @@ function ac(id){return getAllAccts().find(a=>a.id===id)||{lbl:id||'—',who:'—
 function bizOf(id){return ac(id).biz;}
 
 // CALCULOS
+function getAi(obj){return obj.ai||obj.acctId||null;}
 function tddCalc(aid){
   const m=cur(),ini=Number(m.tddBal?.[aid]||0);
-  const ing=m.ingresos.filter(i=>i.ai===aid).reduce((a,i)=>a+Number(i.amt),0);
-  let gv=0;Object.values(m.varGastos).forEach(list=>{list.forEach(t=>{if(t.ai===aid)gv+=Number(t.amt);});});
-  let gf=0;ST.fx.forEach(f=>{if(f.ai===aid&&m.fixedPaid[f.id])gf+=Number(f.amt);});
-  const pTDC=(m.tdcPagos||[]).filter(p=>p.fromAi===aid).reduce((a,p)=>a+Number(p.amt),0);
+  const ing=(m.ingresos||[]).filter(i=>getAi(i)===aid).reduce((a,i)=>a+Number(i.amt),0);
+  let gv=0;Object.values(m.varGastos||{}).forEach(list=>{list.forEach(t=>{if(getAi(t)===aid)gv+=Number(t.amt);});});
+  let gf=0;ST.fx.forEach(f=>{if((f.ai||f.acctId)===aid&&m.fixedPaid[f.id])gf+=Number(f.amt);});
+  const pTDC=(m.tdcPagos||[]).filter(p=>(p.fromAi||p.fromAcctId)===aid).reduce((a,p)=>a+Number(p.amt),0);
   return{ini,ing,gv,gf,pTDC,bal:ini+ing-gv-gf-pTDC};
 }
 function tdcCalc(tid){
   const m=cur(),ant=Number(m.tdcAnterior?.[tid]||0);
-  let gv=0;Object.values(m.varGastos).forEach(list=>{list.forEach(t=>{if(t.ai===tid)gv+=Number(t.amt);});});
-  let gf=0;ST.fx.forEach(f=>{if(f.ai===tid&&m.fixedPaid[f.id])gf+=Number(f.amt);});
+  let gv=0;Object.values(m.varGastos||{}).forEach(list=>{list.forEach(t=>{if(getAi(t)===tid)gv+=Number(t.amt);});});
+  let gf=0;ST.fx.forEach(f=>{if((f.ai||f.acctId)===tid&&m.fixedPaid[f.id])gf+=Number(f.amt);});
   const pagos=(m.tdcPagos||[]).filter(p=>p.tdcId===tid).reduce((a,p)=>a+Number(p.amt),0);
   return{ant,gastado:gv+gf,pagos,bal:Math.max(0,ant+gv+gf-pagos)};
 }
@@ -322,7 +323,10 @@ async function init(){
   let local=null;try{const r=localStorage.getItem(DK);if(r)local=JSON.parse(r);}catch(e){}
   const cloud=await cloudLoad();
   ST=migrateData(cloud&&cloud.cm?cloud:(local&&local.cm?local:defST()));
-  localStorage.setItem(DK,JSON.stringify(ST));renderAll();
+  localStorage.setItem(DK,JSON.stringify(ST));
+  // Save migrated data back to cloud so future loads are clean
+  sv();
+  renderAll();
 }
 function openCfg(){document.getElementById('c-bin').value=CREDS.bin;document.getElementById('c-key').value=CREDS.key;document.getElementById('cfgOv').style.display='flex';}
 function closeCfg(){document.getElementById('cfgOv').style.display='none';}
@@ -630,7 +634,7 @@ function delExp(cat,id){if(!confirm('¿Eliminar?'))return;cur().varGastos[cat]=c
 // GASTOS FIJOS
 function rFijos(){
   const fp=cur().fixedPaid,tA=tFx(),tP=ST.fx.filter(f=>fp[f.id]).reduce((a,f)=>a+f.amt,0);
-  const byW={Hansel:ST.fx.filter(f=>['Hansel'].includes(ac(f.ai).who)),Lessys:ST.fx.filter(f=>['Lessys'].includes(ac(f.ai).who))};
+  const byW={Hansel:ST.fx.filter(f=>['Hansel'].includes(ac(f.ai||f.acctId).who)),Lessys:ST.fx.filter(f=>['Lessys'].includes(ac(f.ai||f.acctId).who))};
   let h=`<div class="mg3">
     <div class="mc"><div class="mc-l">Total fijos</div><div class="mc-v">${$f(tA)}</div></div>
     <div class="mc"><div class="mc-l">Pagados</div><div class="mc-v gn">${$f(tP)}</div></div>
@@ -640,7 +644,7 @@ function rFijos(){
     if(!list.length)return;
     h+=`<div class="slbl">${w} — ${$f(list.reduce((a,f)=>a+f.amt,0))}</div>`;
     list.forEach(f=>{
-      const pd=fp[f.id],a=ac(f.ai);
+      const pd=fp[f.id],a=ac(f.ai||f.acctId);
       if(editFx===f.id){
         h+=`<div class="erow"><input type="text" id="ef-d-${f.id}" value="${f.desc}" style="flex:1;min-width:100px"><input type="number" id="ef-a-${f.id}" value="${f.amt}" step="0.01" style="width:85px">${aSelect(f.ai,'','ef-s-'+f.id)}<button onclick="svFx('${f.id}')">Guardar</button><button onclick="cxFx()">Cancelar</button></div>`;
       }else{
@@ -731,7 +735,7 @@ function rTDC(){
     <input type="date" id="pD" value="${td()}">
     <select id="pTDC" style="font-family:inherit" onchange="updPagoFrom()">${TDC_ACCTS.map(c=>{const pb=c.paidBy==='Hansel'&&c.who==='Lessys'?' (Hansel paga)':'';return`<option value="${c.id}">${getName(c.id)}${pb}</option>`;}).join('')}</select>
     <input type="number" id="pAmt" placeholder="Monto pagado $" min="0" step="0.01">
-    ${aSelect(TDC_ACCTS[0].linkedTDD||'bofa_h','','pFrom')}
+    ${aSelect(TDC_ACCTS[0].linkedTDD||'bofa_h','updPagoFrom()','pFrom')}
   </div>
   <div id="pagoHint" style="margin-bottom:.75rem"><span style="font-size:12px;color:var(--t2)">💳 Se descuenta de: <strong>${getName(TDC_ACCTS[0].linkedTDD)}</strong></span></div>
   <button class="add-btn" id="pagoBtn" onclick="addPago()">+ Registrar pago</button>
@@ -786,8 +790,8 @@ function delPago(id){
 // EMPRESAS
 function rEmp(){
   function bizExp(b){
-    const l=[];Object.entries(cur().varGastos).forEach(([cat,items])=>{items.forEach(t=>{if(t.biz===b)l.push({...t,cat});});});
-    ST.fx.forEach(f=>{if(bizOf(f.ai)===b&&cur().fixedPaid[f.id])l.push({...f,cat:'fijo',biz:b});});return l;
+    const l=[];Object.entries(cur().varGastos||{}).forEach(([cat,items])=>{items.forEach(t=>{if(t.biz===b)l.push({...t,cat});});});
+    ST.fx.forEach(f=>{if(bizOf(f.ai||f.acctId)===b&&cur().fixedPaid[f.id])l.push({...f,cat:'fijo',biz:b});});return l;
   }
   function co(b,name,type,tddId){
     const ex=bizExp(b),inc=cur().ingresos.filter(i=>i.type===type);
