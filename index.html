@@ -795,7 +795,10 @@ function rEmp(){
   }
   function co(b,name,type,tddId){
     const ex=bizExp(b),inc=cur().ingresos.filter(i=>i.type===type);
-    const tE=ex.reduce((a,t)=>a+Number(t.amt),0),tI=inc.reduce((a,t)=>a+Number(t.amt),0),net=tI-tE;
+    const tE=ex.reduce((a,t)=>a+Number(t.amt),0),tI=inc.reduce((a,t)=>a+Number(t.amt),0);
+    // Include TDC payments made FROM the linked TDD account as business expenses
+    const tdcPagosEmpresa=(cur().tdcPagos||[]).filter(p=>(p.fromAi||p.fromAcctId)===tddId).reduce((a,p)=>a+Number(p.amt),0);
+    const net=tI-tE-tdcPagosEmpresa;
     const tddC=tddCalc(tddId),tddNm=getName(tddId);
     const tddBal=tddC.bal,tddBalC=tddBal>=0?'var(--gn)':'var(--rd)';
     return`<div class="co-card">
@@ -819,11 +822,16 @@ function rEmp(){
             <div><div>Pagos TDC</div><div style="font-size:16px;font-weight:700;color:var(--am)">${$f(tddC.pTDC)}</div></div>
           </div>
         </div>
-        <div class="mg2"><div class="mc"><div class="mc-l">Ingresos empresa</div><div class="mc-v gn">${$f(tI)}</div></div><div class="mc"><div class="mc-l">Gastos empresa</div><div class="mc-v rd">${$f(tE)}</div></div></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:.875rem">
+          <div class="mc"><div class="mc-l">Ingresos</div><div class="mc-v gn">${$f(tI)}</div></div>
+          <div class="mc"><div class="mc-l">Gastos operativos</div><div class="mc-v rd">${$f(tE)}</div></div>
+          <div class="mc"><div class="mc-l">Pagos TDC</div><div class="mc-v rd">${$f(tdcPagosEmpresa)}</div></div>
+        </div>
         <div class="slbl">Ingresos</div>
         ${inc.length?inc.sort((a,b)=>a.date.localeCompare(b.date)).map(t=>`<div class="tx"><div class="ti"><div class="td">${t.desc}</div><div class="tm">${fd(t.date)} · ${ac(t.ai).lbl}</div></div><div class="ta gn">+${$f(t.amt)}</div></div>`).join(''):`<div class="empty" style="padding:.625rem">Agrega en "Ingresos" → "${type==='sgb'?'Smile Garden Behavior':'Del Real Solutions'}"</div>`}
         <div class="slbl" style="margin-top:1rem">Gastos</div>
         ${ex.length?ex.sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(t=>`<div class="tx"><div class="ti"><div class="td">${t.desc}</div><div class="tm">${fd(t.date)} · ${ac(t.ai).lbl} · ${CATS[t.cat]?.lbl||'Fijo'}</div></div><div class="ta rd">-${$f(t.amt)}</div></div>`).join(''):`<div class="empty" style="padding:.625rem">Usa cuentas ${b} para enrutar gastos aquí</div>`}
+        ${tdcPagosEmpresa>0?`<div class="slbl" style="margin-top:1rem">Pagos TDC desde ${getName(tddId)}</div>${(cur().tdcPagos||[]).filter(p=>(p.fromAi||p.fromAcctId)===tddId).sort((a,b)=>a.date.localeCompare(b.date)).map(p=>`<div class="tx"><div class="ti"><div class="td">Pago → ${getName(p.tdcId)}</div><div class="tm">${fd(p.date)}</div></div><div class="ta rd">-${$f(p.amt)}</div></div>`).join('')}`:''}
       </div></div>`;
   }
   document.getElementById('sec-empresas').innerHTML=
