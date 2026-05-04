@@ -708,7 +708,7 @@ function rTDC(){
           <div>
             <div style="font-size:14px;font-weight:700;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
               ${nm} ${bizBdg(c.biz)}
-              ${linked?`<span class="link-badge">🔗 ${getName(linked.id)}</span>`:''}
+              ${linked?`<span class="link-badge">💡 Sugerido: ${getName(linked.id)}</span>`:''}
             </div>
             <div style="font-size:11px;color:var(--t2);margin-top:2px">Límite: ${$f(c.lim)} · Disp: ${$f(Math.max(0,c.lim-calc.bal))}</div>
           </div>
@@ -735,7 +735,10 @@ function rTDC(){
     <input type="date" id="pD" value="${td()}">
     <select id="pTDC" style="font-family:inherit" onchange="updPagoFrom()">${TDC_ACCTS.map(c=>{const pb=c.paidBy==='Hansel'&&c.who==='Lessys'?' (Hansel paga)':'';return`<option value="${c.id}">${getName(c.id)}${pb}</option>`;}).join('')}</select>
     <input type="number" id="pAmt" placeholder="Monto pagado $" min="0" step="0.01">
-    ${aSelect(TDC_ACCTS[0].linkedTDD||'bofa_h','updPagoFrom()','pFrom')}
+    <select id="pFrom" style="font-family:inherit">
+      <optgroup label="Hansel TDD">${TDD_ACCTS.filter(a=>a.who==='Hansel').map(a=>`<option value="${a.id}">${getName(a.id)}${a.biz?' · '+a.biz:''}</option>`).join('')}</optgroup>
+      <optgroup label="Lessys TDD">${TDD_ACCTS.filter(a=>a.who==='Lessys').map(a=>`<option value="${a.id}">${getName(a.id)}${a.biz?' · '+a.biz:''}</option>`).join('')}</optgroup>
+    </select>
   </div>
   <div id="pagoHint" style="margin-bottom:.75rem"><span style="font-size:12px;color:var(--t2)">💳 Se descuenta de: <strong>${getName(TDC_ACCTS[0].linkedTDD)}</strong></span></div>
   <button class="add-btn" id="pagoBtn" onclick="addPago()">+ Registrar pago</button>
@@ -747,12 +750,14 @@ function updPagoFrom(){
   const sel=document.getElementById('pTDC')?.value;
   const c=TDC_ACCTS.find(x=>x.id===sel);
   const fromSel=document.getElementById('pFrom');
+  // Only pre-select the linked TDD as suggestion, user can change
   if(fromSel&&c&&c.linkedTDD)fromSel.value=c.linkedTDD;
-  // Show who pays this card
+  // Update hint
   const hint=document.getElementById('pagoHint');
   if(hint&&c){
-    const tddNm=getName(c.linkedTDD);
-    hint.innerHTML=`<span style="font-size:12px;color:var(--t2)">💳 Se descuenta de: <strong>${tddNm}</strong> ${c.paidBy==='Hansel'&&c.who==='Lessys'?'<span class="bdg bh">Hansel paga</span>':''}</span>`;
+    const fromVal=fromSel?.value;
+    const fromNm=fromVal?getName(fromVal):'—';
+    hint.innerHTML=`<span style="font-size:12px;color:var(--t2)">💳 Sugerido: <strong>${getName(c.linkedTDD||'bofa_h')}</strong> — puedes cambiar la cuenta arriba</span>`;
   }
 }
 function updTDCAnt(id,v){if(!isNaN(+v)){if(!cur().tdcAnterior)cur().tdcAnterior={};cur().tdcAnterior[id]=+v;sv();rTDC();}}
